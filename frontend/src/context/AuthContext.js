@@ -59,7 +59,6 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
   
-  // Sign up function
   const register = async (userData) => {
     try {
       const response = await fetch('http://localhost:5000/api/auth/register', {

@@ -23,35 +23,15 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
     
-    try {
-      const response = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ email, password })
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
-      
-      // Save to localStorage
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      
-      // Update auth context
-      login(data.user, data.token);
-      
-      // Redirect to dashboard
-      navigate('/dashboard');
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
+    const result = await login(email, password);
+    
+    if (result.success) {
+      navigate('/');
+    } else {
+      setError(result.error);
     }
+    
+    setLoading(false);
   };
 
   return (
@@ -101,7 +81,7 @@ const LoginPage = () => {
               </form>
             </div>
             <div className="card-footer text-center py-3">
-              <p className="mb-0">Don't have an account? <Link to="/register" className="text-decoration-none">Sign up</Link></p>
+              <p className="mb-0">Don't have an account? <Link to="/signup" className="text-decoration-none">Sign up</Link></p>
             </div>
           </div>
         </div>

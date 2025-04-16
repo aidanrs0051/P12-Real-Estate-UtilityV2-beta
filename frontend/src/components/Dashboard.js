@@ -48,6 +48,4 @@ const DashboardPage = () => {
 
     fetchUserData();
   }, []);
-
-  // Rest of the dashboard component...
 };
