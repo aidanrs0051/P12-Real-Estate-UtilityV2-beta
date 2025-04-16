@@ -1,5 +1,5 @@
 import React, { useState, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 const LoginPage = () => {
@@ -23,15 +23,35 @@ const LoginPage = () => {
     setLoading(true);
     setError('');
     
-    const result = await login(email, password);
-    
-    if (result.success) {
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+      
+      // Save to localStorage
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Update auth context
+      login(data.user, data.token);
+      
+      // Redirect to dashboard
       navigate('/dashboard');
-    } else {
-      setError(result.error);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    
-    setLoading(false);
   };
 
   return (
@@ -81,7 +101,7 @@ const LoginPage = () => {
               </form>
             </div>
             <div className="card-footer text-center py-3">
-              <p className="mb-0">Don't have an account? <a href="/register" className="text-decoration-none">Sign up</a></p>
+              <p className="mb-0">Don't have an account? <Link to="/register" className="text-decoration-none">Sign up</Link></p>
             </div>
           </div>
         </div>
