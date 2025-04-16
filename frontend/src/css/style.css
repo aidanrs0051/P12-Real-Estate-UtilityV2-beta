@@ -1,0 +1,35 @@
+/* Main CSS file - style.css */
+
+:root {
+  --custom-light-purple: #8e44ad;
+  --custom-dark-purple: #6c3483;
+}
+
+/* Ensure clickable cards inherit text decoration */
+.listing-card a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.listing-card a:hover {
+  color: inherit;
+}
+
+/* Footer styles */
+footer {
+  background-color: #f8f9fa;
+  padding: 20px 0;
+  margin-top: 40px;
+}
+
+.footer-bottom {
+  padding: 15px 0;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+}
+
+/* Additional styling specific to the report generator page */
+.report-container {
+  padding: 60px 0;
+  text-align: center;
+}
