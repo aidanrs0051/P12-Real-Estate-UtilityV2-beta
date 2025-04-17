@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Hero from '../components/Hero';
 import ListingsGrid from '../components/ListingsGrid';
 import Filters from '../components/Filters';
@@ -9,106 +9,59 @@ const HomePage = () => {
   const [featuredListings, setFeaturedListings] = useState([]);
   const [newListings, setNewListings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+  const [error, setError] = useState(null);
+  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
+  // Memoize the fetchListings function with useCallback
+  const fetchListings = useCallback(async (filters = {}) => {
+    try {
+      setIsLoading(true);
+      
+      // Create query string from filters
+      const queryParams = new URLSearchParams();
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value) queryParams.append(key, value);
+      });
+      
+      const response = await fetch(`${API_URL}/listings?${queryParams}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch listings');
+      }
+      
+      const data = await response.json();
+      
+      // Sort by price for featured listings (most expensive first)
+      const sortedByPrice = [...data].sort((a, b) => {
+        const priceA = parseFloat(a.price.replace(/[$,]/g, ''));
+        const priceB = parseFloat(b.price.replace(/[$,]/g, ''));
+        return priceB - priceA;
+      });
+      
+      // Featured listings are the top 4 most expensive
+      setFeaturedListings(sortedByPrice.slice(0, 4));
+      
+      // New listings are the 4 most recently added
+      setNewListings(data.slice(0, 4));
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching listings:', err);
+      setError('Failed to load listings. Please try again later.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [API_URL]); // API_URL is the only dependency
 
   useEffect(() => {
-    // This would be replaced with an API call in the future
-    // Example: fetchListingsData().then(data => {
-    //   setFeaturedListings(data.featured);
-    //   setNewListings(data.new);
-    //   setIsLoading(false);
-    // });
-    
-    // For now, use sample data
-    setFeaturedListings([
-      {
-        id: 1,
-        price: '$549,000',
-        address: '123 Main St, Anytown, ST 12345',
-        beds: 4,
-        baths: 3,
-        sqft: '2,250',
-        imageUrl: '/api/placeholder/300/200'
-      },
-      {
-        id: 2,
-        price: '$379,900',
-        address: '456 Oak Ave, Somecity, ST 67890',
-        beds: 3,
-        baths: 2,
-        sqft: '1,850',
-        imageUrl: '/api/placeholder/300/200'
-      },
-      {
-        id: 3,
-        price: '$689,000',
-        address: '789 Pine Rd, Otherville, ST 24680',
-        beds: 5,
-        baths: 3.5,
-        sqft: '3,100',
-        imageUrl: '/api/placeholder/300/200'
-      },
-      {
-        id: 4,
-        price: '$425,000',
-        address: '321 Cedar Ln, Newtown, ST 13579',
-        beds: 3,
-        baths: 2.5,
-        sqft: '2,000',
-        imageUrl: '/api/placeholder/300/200'
-      }
-    ]);
-    
-    setNewListings([
-      {
-        id: 5,
-        price: '$510,000',
-        address: '555 Maple Dr, Evergreen, ST 97531',
-        beds: 4,
-        baths: 2,
-        sqft: '2,400',
-        imageUrl: '/api/placeholder/300/200'
-      },
-      {
-        id: 6,
-        price: '$350,000',
-        address: '777 Birch St, Hometown, ST 86420',
-        beds: 2,
-        baths: 2,
-        sqft: '1,600',
-        imageUrl: '/api/placeholder/300/200'
-      },
-      {
-        id: 7,
-        price: '$725,000',
-        address: '999 Elm Ct, Riverside, ST 36925',
-        beds: 5,
-        baths: 4,
-        sqft: '3,500',
-        imageUrl: '/api/placeholder/300/200'
-      },
-      {
-        id: 8,
-        price: '$399,500',
-        address: '444 Willow Way, Lakeside, ST 25836',
-        beds: 3,
-        baths: 2,
-        sqft: '1,950',
-        imageUrl: '/api/placeholder/300/200'
-      }
-    ]);
-    
-    setIsLoading(false);
-  }, []);
+    // Fetch listings when component mounts
+    fetchListings();
+  }, [fetchListings]); // Include fetchListings in the dependency array
 
   // Handler for filter changes
   const handleFilterChange = (filters) => {
     console.log('Filters applied:', filters);
-    // This would trigger a new API call with filter parameters
-    // Example: fetchFilteredListings(filters).then(data => {
-    //   setFeaturedListings(data.featured);
-    //   setNewListings(data.new);
-    // });
+    fetchListings(filters);
   };
 
   if (isLoading) {
@@ -121,13 +74,34 @@ const HomePage = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="container py-5">
+        <div className="alert alert-danger" role="alert">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <Hero />
       <div className="container py-4">
-        <ListingsGrid title="Featured Listings" listings={featuredListings} />
+        {featuredListings.length > 0 ? (
+          <ListingsGrid title="Featured Listings" listings={featuredListings} />
+        ) : (
+          <div className="alert alert-info">No featured listings available.</div>
+        )}
+        
         <Filters onFilterChange={handleFilterChange} />
-        <ListingsGrid title="New on the Market" listings={newListings} />
+        
+        {newListings.length > 0 ? (
+          <ListingsGrid title="New on the Market" listings={newListings} />
+        ) : (
+          <div className="alert alert-info">No new listings available.</div>
+        )}
+        
         <Newsletter />
       </div>
     </div>

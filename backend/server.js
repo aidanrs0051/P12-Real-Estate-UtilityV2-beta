@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const authRoutes = require('./authRoutes');
+const listingRoutes = require('./listingRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -34,10 +35,31 @@ function createTables() {
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Listings table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS listings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT,
+      price TEXT NOT NULL,
+      address TEXT NOT NULL,
+      beds INTEGER NOT NULL,
+      baths REAL NOT NULL,
+      sqft TEXT NOT NULL,
+      propertyType TEXT NOT NULL,
+      description TEXT,
+      imageUrl TEXT,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      userId INTEGER,
+      status TEXT DEFAULT 'active',
+      FOREIGN KEY (userId) REFERENCES users (id)
+    )
+  `);
 }
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/listings', listingRoutes);
 
 // Start server
 app.listen(PORT, () => {

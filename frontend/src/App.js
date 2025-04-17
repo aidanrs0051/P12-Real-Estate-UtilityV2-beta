@@ -6,6 +6,7 @@ import Footer from './components/Footer';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ListingsPage from './pages/ListingsPage';
+import ListingDetailPage from './pages/ListingDetailPage';
 import ReportsPage from './pages/ReportsPage';
 import SignupPage from './pages/SignupPage';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -31,6 +32,7 @@ const App = () => {
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/listings" element={<ListingsPage />} />
+              <Route path="/listings/:id" element={<ListingDetailPage />} />
               <Route path="/reports" element={
                 <ProtectedRoute>
                   <ReportsPage />
