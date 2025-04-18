@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Header from './components/Header';
 import Footer from './components/Footer';
+import ListingForm from './components/ListingForm';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import ListingsPage from './pages/ListingsPage';
@@ -40,6 +41,11 @@ const App = () => {
               } />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<SignupPage />} />
+              <Route path="/listings/new" element={
+                <ProtectedRoute>
+                  <ListingForm />
+                </ProtectedRoute>
+              } />
             </Routes>
           </main>
           <Footer />

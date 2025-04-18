@@ -60,13 +60,17 @@ const ListingDetailPage = () => {
       <div className="row">
         <div className="col-md-8">
           <img 
-            src={listing.imageUrl || '/api/placeholder/800/600'} 
+            src={`${API_URL}/listings/${id}/image`} 
             alt={listing.address}
             className="img-fluid rounded mb-4"
+            onError={(e) => {
+              e.target.src = '/api/placeholder/800/600';
+              e.target.onerror = null;
+            }}
           />
           
           <h1 className="mb-3">{listing.title || listing.address}</h1>
-          <h3 className="text-primary mb-3">{listing.price}</h3>
+          <h3 className="text-primary mb-3">${listing.price}</h3>
           
           <div className="d-flex mb-4">
             <div className="me-4">
@@ -87,7 +91,7 @@ const ListingDetailPage = () => {
           <p>{listing.description || 'No description available.'}</p>
           
           <div className="mt-4">
-            <Link to="/listings" className="btn btn-outline-primary me-2">
+            <Link to="/" className="btn btn-outline-primary me-2">
               Back to Listings
             </Link>
             <button className="btn btn-primary">
@@ -108,10 +112,6 @@ const ListingDetailPage = () => {
                 <li className="list-group-item d-flex justify-content-between">
                   <span>Property Type:</span>
                   <span className="text-muted">{listing.propertyType}</span>
-                </li>
-                <li className="list-group-item d-flex justify-content-between">
-                  <span>Year Built:</span>
-                  <span className="text-muted">{listing.yearBuilt || 'N/A'}</span>
                 </li>
               </ul>
             </div>

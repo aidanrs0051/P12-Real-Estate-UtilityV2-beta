@@ -1,3 +1,4 @@
+// In middleware/auth.js
 const jwt = require('jsonwebtoken');
 
 module.exports = (req, res, next) => {
@@ -11,7 +12,7 @@ module.exports = (req, res, next) => {
   
   // Verify token
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'rocketcityrealtyjwtsecret');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_key');
     req.user = decoded;
     next();
   } catch (err) {

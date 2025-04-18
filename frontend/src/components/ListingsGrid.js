@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 const ListingsGrid = ({ title, listings }) => {
   return (
     <div className="listings-section py-4">
@@ -10,12 +12,16 @@ const ListingsGrid = ({ title, listings }) => {
           <div key={listing.id} className="col-md-6 col-lg-3 mb-4">
             <div className="card h-100 shadow-sm">
               <img 
-                src={listing.imageUrl} 
+                src={`${API_URL}/listings/${listing.id}/image`} 
                 className="card-img-top" 
                 alt={`Property at ${listing.address}`} 
+                onError={(e) => {
+                  e.target.src = '/api/placeholder/300/200';
+                  e.target.onerror = null;
+                }}
               />
               <div className="card-body">
-                <h5 className="card-title fw-bold">{listing.price}</h5>
+                <h5 className="card-title fw-bold">${listing.price}</h5>
                 <p className="card-text text-muted small">{listing.address}</p>
                 <div className="d-flex justify-content-between">
                   <span><i className="bi bi-door-closed"></i> {listing.beds} beds</span>

@@ -1,6 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
+const multer = require('multer'); // For handling multipart/form-data
+const auth = require('./middleware/auth'); // Your auth middleware
+
+// Configure multer for memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // Limit file size to 5MB
+});
 
 // Connect to SQLite database
 const db = new sqlite3.Database('./database.sqlite', (err) => {
@@ -13,43 +22,11 @@ const db = new sqlite3.Database('./database.sqlite', (err) => {
 
 // Get all listings
 router.get('/', (req, res) => {
-  // Parse filter parameters from query string
-  const { minPrice, maxPrice, beds, baths, propertyType } = req.query;
+  // Similar to before, but don't include the BLOB in the default listing response
+  // to avoid sending large amounts of data
+  const query = 'SELECT id, title, price, address, beds, baths, sqft, propertyType, description, createdAt, userId, status FROM listings WHERE status = "active" ORDER BY createdAt DESC';
   
-  let query = 'SELECT * FROM listings WHERE status = "active"';
-  const params = [];
-  
-  if (minPrice) {
-    // Remove $ and commas for numeric comparison
-    const numericMinPrice = parseFloat(minPrice.replace(/[$,]/g, ''));
-    query += ' AND CAST(REPLACE(REPLACE(price, "$", ""), ",", "") AS REAL) >= ?';
-    params.push(numericMinPrice);
-  }
-  
-  if (maxPrice) {
-    const numericMaxPrice = parseFloat(maxPrice.replace(/[$,]/g, ''));
-    query += ' AND CAST(REPLACE(REPLACE(price, "$", ""), ",", "") AS REAL) <= ?';
-    params.push(numericMaxPrice);
-  }
-  
-  if (beds) {
-    query += ' AND beds >= ?';
-    params.push(parseInt(beds));
-  }
-  
-  if (baths) {
-    query += ' AND baths >= ?';
-    params.push(parseFloat(baths));
-  }
-  
-  if (propertyType && propertyType !== 'any') {
-    query += ' AND propertyType = ?';
-    params.push(propertyType);
-  }
-  
-  query += ' ORDER BY createdAt DESC';
-  
-  db.all(query, params, (err, listings) => {
+  db.all(query, [], (err, listings) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -60,7 +37,195 @@ router.get('/', (req, res) => {
 
 // Get a single listing by ID
 router.get('/:id', (req, res) => {
-  db.get('SELECT * FROM listings WHERE id = ?', [req.params.id], (err, listing) => {
+  // For single listing, don't include the BLOB initially
+  db.get('SELECT id, title, price, address, beds, baths, sqft, propertyType, description, createdAt, userId, status FROM listings WHERE id = ?', 
+    [req.params.id], 
+    (err, listing) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+      
+      res.json(listing);
+    }
+  );
+});
+
+// Get a listing's image
+router.get('/:id/image', (req, res) => {
+  db.get('SELECT image, imageType FROM listings WHERE id = ?', 
+    [req.params.id], 
+    (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (!result || !result.image) {
+        return res.status(404).json({ error: 'Image not found' });
+      }
+      
+      // Send the image with the correct content type
+      res.contentType(result.imageType || 'image/jpeg');
+      res.send(Buffer.from(result.image));
+    }
+  );
+});
+
+// Create a new listing with image upload
+router.post('/', auth, upload.single('image'), (req, res) => {
+  try {
+    const {
+      title,
+      price,
+      address,
+      beds,
+      baths,
+      sqft,
+      propertyType,
+      description
+    } = req.body;
+    
+    // Validate required fields
+    if (!price || !address || !beds || !baths || !sqft || !propertyType) {
+      return res.status(400).json({ error: 'Missing required fields' });
+    }
+    
+    let image = null;
+    let imageType = null;
+    
+    // Check if an image was uploaded
+    if (req.file) {
+      image = req.file.buffer;
+      imageType = req.file.mimetype;
+    }
+    
+    const sql = `
+      INSERT INTO listings (
+        title, price, address, beds, baths, sqft, propertyType, 
+        description, image, imageType, userId
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    db.run(
+      sql,
+      [title, price, address, beds, baths, sqft, propertyType, description, image, imageType, req.user.id],
+      function(err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+        
+        res.status(201).json({
+          id: this.lastID,
+          message: 'Listing created successfully'
+        });
+      }
+    );
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update a listing with optional image update
+router.put('/:id', auth, upload.single('image'), (req, res) => {
+  try {
+    const {
+      title,
+      price,
+      address,
+      beds,
+      baths,
+      sqft,
+      propertyType,
+      description,
+      status
+    } = req.body;
+    
+    // Check if user owns this listing or is admin
+    db.get('SELECT userId FROM listings WHERE id = ?', [req.params.id], (err, listing) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+      
+      // Check if user owns the listing
+      if (listing.userId !== req.user.id) {
+        return res.status(403).json({ error: 'Not authorized to update this listing' });
+      }
+      
+      // If there's a new image, update it
+      if (req.file) {
+        const updateWithImageSql = `
+          UPDATE listings SET
+            title = COALESCE(?, title),
+            price = COALESCE(?, price),
+            address = COALESCE(?, address),
+            beds = COALESCE(?, beds),
+            baths = COALESCE(?, baths),
+            sqft = COALESCE(?, sqft),
+            propertyType = COALESCE(?, propertyType),
+            description = COALESCE(?, description),
+            image = ?,
+            imageType = ?,
+            status = COALESCE(?, status)
+          WHERE id = ?
+        `;
+        
+        db.run(
+          updateWithImageSql,
+          [title, price, address, beds, baths, sqft, propertyType, description, 
+           req.file.buffer, req.file.mimetype, status, req.params.id],
+          function(err) {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+            
+            res.json({ message: 'Listing updated successfully' });
+          }
+        );
+      } else {
+        // If no new image, update everything except the image
+        const updateWithoutImageSql = `
+          UPDATE listings SET
+            title = COALESCE(?, title),
+            price = COALESCE(?, price),
+            address = COALESCE(?, address),
+            beds = COALESCE(?, beds),
+            baths = COALESCE(?, baths),
+            sqft = COALESCE(?, sqft),
+            propertyType = COALESCE(?, propertyType),
+            description = COALESCE(?, description),
+            status = COALESCE(?, status)
+          WHERE id = ?
+        `;
+        
+        db.run(
+          updateWithoutImageSql,
+          [title, price, address, beds, baths, sqft, propertyType, description, status, req.params.id],
+          function(err) {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+            
+            res.json({ message: 'Listing updated successfully' });
+          }
+        );
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a listing
+router.delete('/:id', auth, (req, res) => {
+  // Check if user owns this listing or is admin
+  db.get('SELECT userId FROM listings WHERE id = ?', [req.params.id], (err, listing) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -69,107 +234,18 @@ router.get('/:id', (req, res) => {
       return res.status(404).json({ error: 'Listing not found' });
     }
     
-    res.json(listing);
-  });
-});
-
-// Create a new listing
-router.post('/', (req, res) => {
-  const {
-    title,
-    price,
-    address,
-    beds,
-    baths,
-    sqft,
-    propertyType,
-    description,
-    imageUrl,
-    userId
-  } = req.body;
-  
-  const sql = `
-    INSERT INTO listings (
-      title, price, address, beds, baths, sqft, propertyType, 
-      description, imageUrl, userId
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  
-  db.run(
-    sql,
-    [title, price, address, beds, baths, sqft, propertyType, description, imageUrl, userId],
-    function(err) {
+    // Check if user owns the listing
+    if (listing.userId !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to delete this listing' });
+    }
+    
+    db.run('DELETE FROM listings WHERE id = ?', [req.params.id], function(err) {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
       
-      res.status(201).json({
-        id: this.lastID,
-        message: 'Listing created successfully'
-      });
-    }
-  );
-});
-
-// Update a listing
-router.put('/:id', (req, res) => {
-  const {
-    title,
-    price,
-    address,
-    beds,
-    baths,
-    sqft,
-    propertyType,
-    description,
-    imageUrl,
-    status
-  } = req.body;
-  
-  const sql = `
-    UPDATE listings SET
-      title = COALESCE(?, title),
-      price = COALESCE(?, price),
-      address = COALESCE(?, address),
-      beds = COALESCE(?, beds),
-      baths = COALESCE(?, baths),
-      sqft = COALESCE(?, sqft),
-      propertyType = COALESCE(?, propertyType),
-      description = COALESCE(?, description),
-      imageUrl = COALESCE(?, imageUrl),
-      status = COALESCE(?, status)
-    WHERE id = ?
-  `;
-  
-  db.run(
-    sql,
-    [title, price, address, beds, baths, sqft, propertyType, description, imageUrl, status, req.params.id],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      
-      if (this.changes === 0) {
-        return res.status(404).json({ error: 'Listing not found' });
-      }
-      
-      res.json({ message: 'Listing updated successfully' });
-    }
-  );
-});
-
-// Delete a listing
-router.delete('/:id', (req, res) => {
-  db.run('DELETE FROM listings WHERE id = ?', [req.params.id], function(err) {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
-    
-    if (this.changes === 0) {
-      return res.status(404).json({ error: 'Listing not found' });
-    }
-    
-    res.json({ message: 'Listing deleted successfully' });
+      res.json({ message: 'Listing deleted successfully' });
+    });
   });
 });
 

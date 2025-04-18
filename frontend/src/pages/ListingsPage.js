@@ -1,10 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
+
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const ListingsPage = () => {
   const [listings, setListings] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState(null);
+  const { isAuthenticated } = useContext(AuthContext);
 
   useEffect(() => {
     fetchListings();
@@ -71,7 +75,15 @@ const ListingsPage = () => {
       )}
       
       <h1 className="text-center mb-4">Featured Listings</h1>
-      
+      {isAuthenticated && (
+          <div className="text-end mb-4">
+            <Link to="/listings/new" className="btn btn-primary">
+              <i className="bi bi-plus-circle me-2"></i>
+              Create New Listing
+            </Link>
+          </div>
+        )}
+
       <div className="mb-4">
         <button 
           id="openListingBtn" 
@@ -110,16 +122,20 @@ const ListingsPage = () => {
         {listings.map(listing => (
           <div className="col" key={listing.id}>
             <div className="card listing-card h-100">
-              <Link to={`/listing/${listing.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <div 
+              <Link to={`/listings/${listing.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                <div>
+                  <img 
+                  src={`${API_URL}/listings/${listing.id}/image`} 
                   className="card-img-top" 
-                  style={{ 
-                    height: '200px', 
-                    background: `url(${listing.imageUrl}) center/cover no-repeat`
+                  alt={`Property at ${listing.address}`} 
+                  onError={(e) => {
+                    e.target.src = '/api/placeholder/300/200';
+                    e.target.onerror = null;
                   }}
-                ></div>
+                  />
+                </div>
                 <div className="card-body">
-                  <h5 className="card-title">{listing.price}</h5>
+                  <h5 className="card-title">${listing.price}</h5>
                   <p className="card-text">
                     {listing.address}<br />
                     {listing.beds} beds | {listing.baths} baths | {listing.sqft} sqft
