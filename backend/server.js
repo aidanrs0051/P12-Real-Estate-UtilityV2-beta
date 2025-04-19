@@ -3,6 +3,7 @@ const cors = require('cors');
 const sqlite3 = require('sqlite3').verbose();
 const authRoutes = require('./authRoutes');
 const listingRoutes = require('./listingRoutes');
+const reportRoutes = require('./reportRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -61,6 +62,7 @@ function createTables() {
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Start server
 app.listen(PORT, () => {

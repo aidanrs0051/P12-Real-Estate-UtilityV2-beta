@@ -6,7 +6,7 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 const ListingsPage = () => {
   const [listings, setListings] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  //const [isLoading, setIsLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState(null);
   const { isAuthenticated } = useContext(AuthContext);
 
@@ -16,18 +16,18 @@ const ListingsPage = () => {
 
   const fetchListings = async () => {
     try {
-      setIsLoading(true);
+      //setIsLoading(true);
       const response = await fetch('http://localhost:5000/api/listings');
       const data = await response.json();
       setListings(data);
     } catch (error) {
       console.error('Error fetching listings:', error);
     } finally {
-      setIsLoading(false);
+      //setIsLoading(false);
     }
   };
 
-  const generateReport = async (type) => {
+  /*const generateReport = async (type) => {
     setIsLoading(true);
     
     try {
@@ -58,7 +58,7 @@ const ListingsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  };*/
   
   return (
     <div className="container my-5">
@@ -85,7 +85,7 @@ const ListingsPage = () => {
         )}
 
       <div className="mb-4">
-        <button 
+        {/*<button 
           id="openListingBtn" 
           className="btn btn-primary me-2" 
           onClick={() => generateReport('open')}
@@ -115,7 +115,7 @@ const ListingsPage = () => {
           ) : (
             'Generate Closed Listings Report'
           )}
-        </button>
+        </button>*/}
       </div>
       
       <div className="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
