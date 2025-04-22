@@ -1,83 +1,50 @@
 const express = require('express');
 const router = express.Router();
-const { db } = require('./server');
+const sqlite3 = require('sqlite3').verbose(); // Add this import
 const auth = require('./middleware/auth');
+const roleAuth = require('./middleware/roleAuth');
 
-// Get current user's profile
-router.get('/profile', auth, (req, res) => {
-  db.get('SELECT id, email, firstName, lastName, createdAt FROM users WHERE id = ?', 
-    [req.user.id], (err, user) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      if (!user) {
-        return res.status(404).json({ error: 'User not found' });
-      }
-      res.json(user);
-  });
+// Connect to SQLite database
+const db = new sqlite3.Database('./database.sqlite', (err) => {
+  if (err) {
+    console.error('Error connecting to database:', err.message);
+  } else {
+    console.log('Connected to SQLite database for user management');
+  }
 });
 
-// Update user profile
-router.put('/profile', auth, (req, res) => {
-  const { firstName, lastName } = req.body;
-  
-  db.run('UPDATE users SET firstName = ?, lastName = ? WHERE id = ?',
-    [firstName, lastName, req.user.id],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      
-      res.json({ message: 'Profile updated successfully' });
-    }
-  );
-});
-
-// Save a listing for a user
-router.post('/saved-listings', auth, (req, res) => {
-  const { listingId } = req.body;
-  
-  db.run('INSERT INTO saved_listings (userId, listingId) VALUES (?, ?)',
-    [req.user.id, listingId],
-    function(err) {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      
-      // Record activity
-      db.run(
-        'INSERT INTO user_activity (userId, activityType, description) VALUES (?, ?, ?)',
-        [req.user.id, 'SAVE_LISTING', `User saved listing #${listingId}`]
-      );
-      
-      res.status(201).json({ 
-        id: this.lastID,
-        message: 'Listing saved successfully' 
-      });
-    }
-  );
-});
-
-// Get user's saved listings
-router.get('/saved-listings', auth, (req, res) => {
-  db.all('SELECT * FROM saved_listings WHERE userId = ?', [req.user.id], (err, listings) => {
+// Get all users (managers only)
+router.get('/', [auth, roleAuth('manager')], (req, res) => {
+  db.all('SELECT id, email, firstName, lastName, role, createdAt FROM users', [], (err, users) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
-    res.json(listings);
+    
+    res.json(users);
   });
 });
 
-// Get user activity
-router.get('/activity', auth, (req, res) => {
-  db.all('SELECT * FROM user_activity WHERE userId = ? ORDER BY timestamp DESC LIMIT 10', 
-    [req.user.id], (err, activities) => {
-      if (err) {
-        return res.status(500).json({ error: err.message });
-      }
-      res.json(activities);
+// Update user role (managers only)
+router.put('/:id/role', [auth, roleAuth('manager')], (req, res) => {
+  const { role } = req.body;
+  const userId = req.params.id;
+  
+  // Validate role
+  if (!['default', 'agent', 'manager'].includes(role)) {
+    return res.status(400).json({ error: 'Invalid role' });
+  }
+  
+  db.run('UPDATE users SET role = ? WHERE id = ?', [role, userId], function(err) {
+    if (err) {
+      return res.status(500).json({ error: err.message });
     }
-  );
+    
+    if (this.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ message: 'User role updated successfully' });
+  });
 });
 
 module.exports = router;

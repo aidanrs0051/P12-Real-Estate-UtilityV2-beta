@@ -10,6 +10,8 @@ import ListingsPage from './pages/ListingsPage';
 import ListingDetailPage from './pages/ListingDetailPage';
 import ReportsPage from './pages/ReportsPage';
 import SignupPage from './pages/SignupPage';
+import UserManagement from './pages/UserManagement';
+import DashboardPage from './pages/DashboardPage';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './css/style.css';
 
@@ -41,9 +43,15 @@ const App = () => {
               } />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<SignupPage />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/listings/new" element={
                 <ProtectedRoute>
                   <ListingForm />
+                </ProtectedRoute>
+              } />
+              <Route path="/admin/users" element={
+                <ProtectedRoute>
+                  <UserManagement />
                 </ProtectedRoute>
               } />
             </Routes>

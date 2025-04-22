@@ -19,7 +19,15 @@ export const AuthProvider = ({ children }) => {
     
     setLoading(false);
   }, []);
+
+  const isManager = () => {
+    return user && user.role === 'manager';
+  };
   
+  const isAgent = () => {
+    return user && (user.role === 'agent' || user.role === 'manager');
+  };
+
   // Login function
   const login = async (email, password) => {
     try {
@@ -97,7 +105,9 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         logout,
-        register
+        register,
+        isManager,
+        isAgent
       }}
     >
       {children}

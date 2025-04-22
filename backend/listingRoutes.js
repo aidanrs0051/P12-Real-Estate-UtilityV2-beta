@@ -3,6 +3,7 @@ const router = express.Router();
 const sqlite3 = require('sqlite3').verbose();
 const multer = require('multer'); // For handling multipart/form-data
 const auth = require('./middleware/auth'); // Your auth middleware
+const roleAuth = require('./middleware/roleAuth');
 
 // Configure multer for memory storage
 const storage = multer.memoryStorage();
@@ -75,7 +76,7 @@ router.get('/:id/image', (req, res) => {
 });
 
 // Create a new listing with image upload
-router.post('/', auth, upload.single('image'), (req, res) => {
+router.post('/', [auth, roleAuth(['agent', 'manager'])], upload.single('image'), (req, res) => {
   try {
     const {
       title,
@@ -129,7 +130,7 @@ router.post('/', auth, upload.single('image'), (req, res) => {
 });
 
 // Update a listing with optional image update
-router.put('/:id', auth, upload.single('image'), (req, res) => {
+router.put('/:id', auth, (req, res) => {
   try {
     const {
       title,
@@ -144,6 +145,10 @@ router.put('/:id', auth, upload.single('image'), (req, res) => {
     } = req.body;
     
     // Check if user owns this listing or is admin
+    if (listing.userId !== req.user.id && req.user.role !== 'agent') {
+      return res.status(403).json({ error: 'Not authorized to update this listing' });
+    }
+
     db.get('SELECT userId FROM listings WHERE id = ?', [req.params.id], (err, listing) => {
       if (err) {
         return res.status(500).json({ error: err.message });

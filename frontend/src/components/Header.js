@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 const Header = () => {
-  const { isAuthenticated, user, logout } = useContext(AuthContext);
+  const { isAuthenticated, user, logout, isManager } = useContext(AuthContext);
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -35,16 +35,16 @@ const Header = () => {
               <li className="nav-item px-2">
                 <NavLink className={({isActive}) => isActive ? "nav-link active" : "nav-link"} to="/listings">Listings</NavLink>
               </li>
-              {isAuthenticated && (
+              {isAuthenticated && isManager() && (
                 <>
                   <li className="nav-item px-2">
                     <NavLink className={({isActive}) => isActive ? "nav-link active" : "nav-link"} to="/reports">Reports</NavLink>
                   </li>
-                  <li className="nav-item px-2">
-                    <NavLink className={({isActive}) => isActive ? "nav-link active" : "nav-link"} to="/dashboard">Dashboard</NavLink>
-                  </li>
                 </>
               )}
+              <li className="nav-item px-2">
+                    <NavLink className={({isActive}) => isActive ? "nav-link active" : "nav-link"} to="/dashboard">Dashboard</NavLink>
+              </li>
             </ul>
             <div className="ms-3 user-actions d-none d-lg-flex">
               {isAuthenticated ? (

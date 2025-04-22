@@ -10,15 +10,16 @@ const SignupPage = () => {
         email: '',
         password: '',
         confirmPassword: '',
+        role: 'default'
     });
 
     // Error state
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
-    const { register } = useContext(AuthContext);
+    const { register, isAuthenticated, isManager } = useContext(AuthContext);
 
-    const { firstName, lastName, email, password, confirmPassword } = formData;
+    const { firstName, lastName, email, password, confirmPassword, role } = formData;
 
     // Handle input changes
     const handleChange = e => {
@@ -42,7 +43,8 @@ const SignupPage = () => {
         firstName,
         lastName,
         email,
-        password
+        password,
+        role
       };
       
       const result = await register(userData);
@@ -130,6 +132,22 @@ const SignupPage = () => {
                       minLength="6"
                     />
                   </div>
+                  {isAuthenticated && isManager() && (
+                    <div className="mb-3">
+                      <label htmlFor="role" className="form-label">User Role</label>
+                      <select
+                        className="form-select"
+                        id="role"
+                        name="role"
+                        value={formData.role}
+                        onChange={handleChange}
+                      >
+                        <option value="default">Regular User</option>
+                        <option value="agent">Agent</option>
+                        <option value="manager">Manager</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="d-flex justify-content-between align-items-center">
                     <button 
                       type="submit" 

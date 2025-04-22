@@ -3,10 +3,11 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const auth = require('./middleware/auth');
+const roleAuth = require('./middleware/roleAuth');
 const { generateReport, getReports } = require('./reportsController');
 
 // Generate a new report
-router.post('/generate', auth, async (req, res) => {
+router.post('/generate', [auth, roleAuth(['manager'])], async (req, res) => {
   try {
     const { type } = req.body;
     
@@ -28,7 +29,7 @@ router.post('/generate', auth, async (req, res) => {
 });
 
 // Get list of available reports
-router.get('/', auth, async (req, res) => {
+router.get('/', [auth, roleAuth(['manager'])], async (req, res) => {
   try {
     const reports = await getReports();
     res.json(reports);
@@ -39,7 +40,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Download a report
-router.get('/download/:filename', (req, res) => {
+router.get('/download/:filename', [auth, roleAuth(['manager'])], (req, res) => {
   const filename = req.params.filename;
   
   // Validate filename to prevent directory traversal

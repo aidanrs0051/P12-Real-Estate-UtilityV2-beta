@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useContext } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
 const ReportsPage = () => {
@@ -12,7 +12,8 @@ const ReportsPage = () => {
   const [loading, setLoading] = useState(false);
   const [alertMessage, setAlertMessage] = useState(null);
   const [alertType, setAlertType] = useState('success');
-  const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, isManager } = useContext(AuthContext);
+  const navigate = useNavigate();
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   // Form state
@@ -25,7 +26,10 @@ const ReportsPage = () => {
   useEffect(() => {
     const type = searchParams.get('type');
     
-    if (type === 'open') {
+    if (isAuthenticated && !isManager()) {
+      navigate('/');
+      return;
+    } else if (type === 'open') {
       setReportData({
         title: "Open Listings Report",
         description: "Generating report for active/open listings."
@@ -45,10 +49,10 @@ const ReportsPage = () => {
     }
 
     // Fetch available reports when component mounts
-    if (isAuthenticated) {
+    /*if (isAuthenticated) {
       fetchReports();
-    }
-  }, [searchParams, isAuthenticated]);
+    }*/
+  }, [searchParams, isAuthenticated, isManager, navigate]);
 
   const fetchReports = async () => {
     try {

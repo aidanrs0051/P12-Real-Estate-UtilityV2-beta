@@ -4,6 +4,7 @@ const sqlite3 = require('sqlite3').verbose();
 const authRoutes = require('./authRoutes');
 const listingRoutes = require('./listingRoutes');
 const reportRoutes = require('./reportRoutes');
+const userRoutes = require('./userRoutes');
 require('dotenv').config();
 
 const app = express();
@@ -33,6 +34,7 @@ function createTables() {
       password TEXT NOT NULL,
       firstName TEXT,
       lastName TEXT,
+      role TEXT DEFAULT 'default',
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -63,6 +65,7 @@ function createTables() {
 app.use('/api/auth', authRoutes);
 app.use('/api/listings', listingRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/users', userRoutes);
 
 // Start server
 app.listen(PORT, () => {

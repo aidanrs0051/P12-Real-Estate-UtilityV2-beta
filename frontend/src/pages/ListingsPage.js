@@ -8,7 +8,7 @@ const ListingsPage = () => {
   const [listings, setListings] = useState([]);
   //const [isLoading, setIsLoading] = useState(true);
   const [alertMessage, setAlertMessage] = useState(null);
-  const { isAuthenticated } = useContext(AuthContext);
+  const { isAuthenticated, isAgent, isManager } = useContext(AuthContext);
 
   useEffect(() => {
     fetchListings();
@@ -75,7 +75,7 @@ const ListingsPage = () => {
       )}
       
       <h1 className="text-center mb-4">Featured Listings</h1>
-      {isAuthenticated && (
+      {isAuthenticated && isAgent() && !isManager() && (
           <div className="text-end mb-4">
             <Link to="/listings/new" className="btn btn-primary">
               <i className="bi bi-plus-circle me-2"></i>
