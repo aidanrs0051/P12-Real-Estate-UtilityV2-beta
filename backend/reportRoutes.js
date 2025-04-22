@@ -40,7 +40,7 @@ router.get('/', [auth, roleAuth(['manager'])], async (req, res) => {
 });
 
 // Download a report
-router.get('/download/:filename', [auth, roleAuth(['manager'])], (req, res) => {
+router.get('/download/:filename', auth, (req, res) => {
   const filename = req.params.filename;
   
   // Validate filename to prevent directory traversal

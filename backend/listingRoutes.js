@@ -254,4 +254,44 @@ router.delete('/:id', auth, (req, res) => {
   });
 });
 
+// Update listing status
+router.put('/:id/status', auth, (req, res) => {
+  try {
+    const { status } = req.body;
+    const listingId = req.params.id;
+    
+    // Validate status
+    if (!status || (status !== 'active' && status !== 'inactive')) {
+      return res.status(400).json({ error: 'Valid status required (active or inactive)' });
+    }
+    
+    // Get the listing to check if user has permission
+    db.get('SELECT userId FROM listings WHERE id = ?', [listingId], (err, listing) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (!listing) {
+        return res.status(404).json({ error: 'Listing not found' });
+      }
+      
+      // Check if user is the owner or a manager
+      if (listing.userId !== req.user.id && req.user.role !== 'manager') {
+        return res.status(403).json({ error: 'Not authorized to update this listing' });
+      }
+      
+      // Update the status
+      db.run('UPDATE listings SET status = ? WHERE id = ?', [status, listingId], function(err) {
+        if (err) {
+          return res.status(500).json({ error: err.message });
+        }
+        
+        res.json({ message: 'Listing status updated successfully', status });
+      });
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 module.exports = router;

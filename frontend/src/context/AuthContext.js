@@ -25,7 +25,7 @@ export const AuthProvider = ({ children }) => {
   };
   
   const isAgent = () => {
-    return user && (user.role === 'agent' || user.role === 'manager');
+    return user && (user.role === 'agent');
   };
 
   // Login function

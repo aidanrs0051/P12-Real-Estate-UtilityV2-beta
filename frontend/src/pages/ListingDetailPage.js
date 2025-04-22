@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 
 const ListingDetailPage = () => {
   const { id } = useParams();
   const [listing, setListing] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [statusLoading, setStatusLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { user, isAgent } = useContext(AuthContext);
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
@@ -32,6 +35,44 @@ const ListingDetailPage = () => {
     fetchListing();
   }, [id, API_URL]);
 
+  const toggleListingStatus = async () => {
+    try {
+      setStatusLoading(true);
+      
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setError('You must be logged in to change listing status');
+        return;
+      }
+      
+      // Determine new status (toggle between active and inactive)
+      const newStatus = listing.status === 'active' ? 'inactive' : 'active';
+      
+      const response = await fetch(`${API_URL}/listings/${id}/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-auth-token': token
+        },
+        body: JSON.stringify({ status: newStatus })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update listing status');
+      }
+      
+      // Update the listing in state
+      setListing({ ...listing, status: newStatus });
+      
+    } catch (err) {
+      console.error('Error updating listing status:', err);
+      setError(err.message);
+    } finally {
+      setStatusLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="container text-center py-5">
@@ -55,6 +96,9 @@ const ListingDetailPage = () => {
     );
   }
 
+  // Check if the current user is an agent and can modify this listing
+  const canModifyListing = user && isAgent && user.role === 'agent'
+
   return (
     <div className="container py-5">
       <div className="row">
@@ -69,7 +113,15 @@ const ListingDetailPage = () => {
             }}
           />
           
-          <h1 className="mb-3">{listing.title || listing.address}</h1>
+          <div className="d-flex justify-content-between align-items-center mb-3">
+            <h1 className="mb-0">{listing.title || listing.address}</h1>
+            
+            {/* Status badge */}
+            <span className={`badge ${listing.status === 'active' ? 'bg-success' : 'bg-secondary'}`}>
+              {listing.status === 'active' ? 'Active' : 'Inactive'}
+            </span>
+          </div>
+          
           <h3 className="text-primary mb-3">${listing.price}</h3>
           
           <div className="d-flex mb-4">
@@ -94,6 +146,25 @@ const ListingDetailPage = () => {
             <Link to="/" className="btn btn-outline-primary me-2">
               Back to Listings
             </Link>
+            
+            {/* Toggle status button - only visible to agents who own the listing or managers */}
+            {canModifyListing && (
+              <button 
+                className={`btn ${listing.status === 'active' ? 'btn-warning' : 'btn-success'} me-2`}
+                onClick={toggleListingStatus}
+                disabled={statusLoading}
+              >
+                {statusLoading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Updating...
+                  </>
+                ) : (
+                  listing.status === 'active' ? 'Mark as Inactive' : 'Mark as Active'
+                )}
+              </button>
+            )}
+            
             <button className="btn btn-primary">
               Contact Agent
             </button>
@@ -112,6 +183,12 @@ const ListingDetailPage = () => {
                 <li className="list-group-item d-flex justify-content-between">
                   <span>Property Type:</span>
                   <span className="text-muted">{listing.propertyType}</span>
+                </li>
+                <li className="list-group-item d-flex justify-content-between">
+                  <span>Status:</span>
+                  <span className={`text-${listing.status === 'active' ? 'success' : 'secondary'}`}>
+                    {listing.status === 'active' ? 'Active' : 'Inactive'}
+                  </span>
                 </li>
               </ul>
             </div>

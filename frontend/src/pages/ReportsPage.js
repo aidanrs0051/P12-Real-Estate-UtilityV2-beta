@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useEffect, useState, useContext, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 
@@ -22,6 +22,52 @@ const ReportsPage = () => {
     dateRange: '30',
     format: 'csv'
   });
+
+  // Define showAlert first so it can be used in fetchReports
+  const showAlert = useCallback((message, type = 'success') => {
+    setAlertMessage(message);
+    setAlertType(type);
+    
+    // Auto-dismiss after 3 seconds
+    setTimeout(() => {
+      setAlertMessage(null);
+    }, 3000);
+  }, []);
+
+  // Memoize fetchReports with useCallback
+  const fetchReports = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        showAlert('Authentication required to view reports', 'warning');
+        return;
+      }
+      
+      console.log('Using token for fetch:', token); // Debug token
+      
+      const response = await fetch(`${API_URL}/reports`, {
+        headers: {
+          'x-auth-token': token
+        }
+      });
+      
+      if (response.status === 401) {
+        showAlert('Your session has expired. Please log in again', 'warning');
+        return;
+      }
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch reports');
+      }
+      
+      const data = await response.json();
+      setReports(data);
+    } catch (error) {
+      console.error('Error fetching reports:', error);
+      showAlert('Error fetching reports', 'danger');
+    }
+  }, [API_URL, showAlert]); // Add showAlert as dependency
 
   useEffect(() => {
     const type = searchParams.get('type');
@@ -49,43 +95,10 @@ const ReportsPage = () => {
     }
 
     // Fetch available reports when component mounts
-    /*if (isAuthenticated) {
+    if (isAuthenticated) {
       fetchReports();
-    }*/
-  }, [searchParams, isAuthenticated, isManager, navigate]);
-
-  const fetchReports = async () => {
-    try {
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        showAlert('Authentication required to view reports', 'warning');
-        return;
-      }
-      
-      const response = await fetch(`${API_URL}/reports`, {
-        headers: {
-          // Make sure the header name matches what your middleware expects
-          'x-auth-token': token
-        }
-      });
-      
-      if (response.status === 401) {
-        showAlert('Your session has expired. Please log in again', 'warning');
-        return;
-      }
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch reports');
-      }
-      
-      const data = await response.json();
-      setReports(data);
-    } catch (error) {
-      console.error('Error fetching reports:', error);
-      showAlert('Error fetching reports', 'danger');
     }
-  };
+  }, [searchParams, isAuthenticated, isManager, navigate, fetchReports]); // Add fetchReports
 
   const handleInputChange = (e) => {
     const { id, value } = e.target;
@@ -116,8 +129,11 @@ const ReportsPage = () => {
       
       if (!token) {
         showAlert('You must be logged in to generate reports', 'warning');
+        setLoading(false);
         return;
       }
+      
+      console.log('Using token for generate:', token); // Debug token
       
       const response = await fetch(`${API_URL}/reports/generate`, {
         method: 'POST',
@@ -131,6 +147,12 @@ const ReportsPage = () => {
           format: formData.format
         })
       });
+      
+      if (response.status === 401) {
+        showAlert('Your session has expired. Please log in again', 'warning');
+        setLoading(false);
+        return;
+      }
       
       const data = await response.json();
       
@@ -159,17 +181,12 @@ const ReportsPage = () => {
     }
     
     // Create download link
-    window.location.href = `${API_URL}/reports/download/${filename}?token=${token}`;
-  };
-
-  const showAlert = (message, type = 'success') => {
-    setAlertMessage(message);
-    setAlertType(type);
-    
-    // Auto-dismiss after 3 seconds
-    setTimeout(() => {
-      setAlertMessage(null);
-    }, 3000);
+    const link = document.createElement('a');
+    link.href = `${API_URL}/reports/download/${filename}?token=${token}`;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
