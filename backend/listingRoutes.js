@@ -9,7 +9,7 @@ const roleAuth = require('./middleware/roleAuth');
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // Limit file size to 5MB
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit per file
 });
 
 // Connect to SQLite database
@@ -76,7 +76,7 @@ router.get('/:id/image', (req, res) => {
 });
 
 // Create a new listing with image upload
-router.post('/', [auth, roleAuth(['agent', 'manager'])], upload.single('image'), (req, res) => {
+router.post('/', [auth, roleAuth(['agent', 'manager'])], upload.array('images', 5), async (req, res) => {
   try {
     const {
       title,
@@ -89,44 +89,243 @@ router.post('/', [auth, roleAuth(['agent', 'manager'])], upload.single('image'),
       description
     } = req.body;
     
-    // Validate required fields
-    if (!price || !address || !beds || !baths || !sqft || !propertyType) {
-      return res.status(400).json({ error: 'Missing required fields' });
+    // Start a transaction
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      
+      // Insert the listing
+      const listingSql = `
+        INSERT INTO listings (
+          title, price, address, beds, baths, sqft, propertyType, 
+          description, userId
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      db.run(
+        listingSql,
+        [title, price, address, beds, baths, sqft, propertyType, description, req.user.id],
+        function(err) {
+          if (err) {
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: err.message });
+          }
+          
+          const listingId = this.lastID;
+          
+          // If there are images, insert them
+          if (req.files && req.files.length > 0) {
+            const imageSql = `
+              INSERT INTO listing_images (
+                listingId, image, imageType, isPrimary, position
+              ) VALUES (?, ?, ?, ?, ?)
+            `;
+            
+            // Process each image
+            let imagesProcessed = 0;
+            req.files.forEach((file, index) => {
+              // First image is primary by default
+              const isPrimary = index === 0 ? 1 : 0;
+              
+              db.run(
+                imageSql,
+                [listingId, file.buffer, file.mimetype, isPrimary, index],
+                function(err) {
+                  if (err) {
+                    console.error('Error inserting image:', err.message);
+                  }
+                  
+                  imagesProcessed++;
+                  
+                  // If all images have been processed, commit and return
+                  if (imagesProcessed === req.files.length) {
+                    db.run('COMMIT');
+                    res.status(201).json({
+                      id: listingId,
+                      message: 'Listing created successfully with images'
+                    });
+                  }
+                }
+              );
+            });
+          } else {
+            // No images, just commit and return
+            db.run('COMMIT');
+            res.status(201).json({
+              id: listingId,
+              message: 'Listing created successfully without images'
+            });
+          }
+        }
+      );
+    });
+  } catch (error) {
+    db.run('ROLLBACK');
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get listing images
+router.get('/:id/images', (req, res) => {
+  db.all(
+    'SELECT id, isPrimary, position FROM listing_images WHERE listingId = ? ORDER BY position ASC',
+    [req.params.id],
+    (err, images) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      res.json(images);
+    }
+  );
+});
+
+// Get a specific image
+router.get('/:listingId/images/:imageId', (req, res) => {
+  db.get(
+    'SELECT image, imageType FROM listing_images WHERE id = ? AND listingId = ?',
+    [req.params.imageId, req.params.listingId],
+    (err, image) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (!image) {
+        return res.status(404).json({ error: 'Image not found' });
+      }
+      
+      // Send the image with the correct content type
+      res.contentType(image.imageType || 'image/jpeg');
+      res.send(Buffer.from(image.image));
+    }
+  );
+});
+
+// Set primary image
+router.put('/:listingId/images/:imageId/primary', [auth, roleAuth(['agent', 'manager'])], (req, res) => {
+  // Get the listing to check if user has permission
+  db.get('SELECT userId FROM listings WHERE id = ?', [req.params.listingId], (err, listing) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
     }
     
-    let image = null;
-    let imageType = null;
-    
-    // Check if an image was uploaded
-    if (req.file) {
-      image = req.file.buffer;
-      imageType = req.file.mimetype;
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
     }
     
-    const sql = `
-      INSERT INTO listings (
-        title, price, address, beds, baths, sqft, propertyType, 
-        description, image, imageType, userId
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
+    // Check if user is the owner or a manager
+    if (listing.userId !== req.user.id && req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Not authorized to update this listing' });
+    }
     
-    db.run(
-      sql,
-      [title, price, address, beds, baths, sqft, propertyType, description, image, imageType, req.user.id],
-      function(err) {
+    // Start a transaction
+    db.serialize(() => {
+      db.run('BEGIN TRANSACTION');
+      
+      // First reset all images to non-primary
+      db.run(
+        'UPDATE listing_images SET isPrimary = 0 WHERE listingId = ?',
+        [req.params.listingId],
+        (err) => {
+          if (err) {
+            db.run('ROLLBACK');
+            return res.status(500).json({ error: err.message });
+          }
+          
+          // Then set the selected image as primary
+          db.run(
+            'UPDATE listing_images SET isPrimary = 1 WHERE id = ? AND listingId = ?',
+            [req.params.imageId, req.params.listingId],
+            function(err) {
+              if (err) {
+                db.run('ROLLBACK');
+                return res.status(500).json({ error: err.message });
+              }
+              
+              if (this.changes === 0) {
+                db.run('ROLLBACK');
+                return res.status(404).json({ error: 'Image not found' });
+              }
+              
+              db.run('COMMIT');
+              res.json({ message: 'Primary image updated successfully' });
+            }
+          );
+        }
+      );
+    });
+  });
+});
+
+// Delete an image
+router.delete('/:listingId/images/:imageId', [auth, roleAuth(['agent', 'manager'])], (req, res) => {
+  // Get the listing to check if user has permission
+  db.get('SELECT userId FROM listings WHERE id = ?', [req.params.listingId], (err, listing) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    // Check if user is the owner or a manager
+    if (listing.userId !== req.user.id && req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Not authorized to update this listing' });
+    }
+    
+    // Check if this is the only image or if it's the primary image
+    db.get(
+      'SELECT COUNT(*) as total, SUM(isPrimary) as primaryCount FROM listing_images WHERE listingId = ?',
+      [req.params.listingId],
+      (err, result) => {
         if (err) {
           return res.status(500).json({ error: err.message });
         }
         
-        res.status(201).json({
-          id: this.lastID,
-          message: 'Listing created successfully'
-        });
+        // Get info about the image to be deleted
+        db.get(
+          'SELECT isPrimary FROM listing_images WHERE id = ? AND listingId = ?',
+          [req.params.imageId, req.params.listingId],
+          (err, image) => {
+            if (err) {
+              return res.status(500).json({ error: err.message });
+            }
+            
+            if (!image) {
+              return res.status(404).json({ error: 'Image not found' });
+            }
+            
+            // Delete the image
+            db.run(
+              'DELETE FROM listing_images WHERE id = ? AND listingId = ?',
+              [req.params.imageId, req.params.listingId],
+              function(err) {
+                if (err) {
+                  return res.status(500).json({ error: err.message });
+                }
+                
+                // If we deleted the primary image and there are other images,
+                // set the first remaining image as primary
+                if (image.isPrimary === 1 && result.total > 1) {
+                  db.run(
+                    'UPDATE listing_images SET isPrimary = 1 WHERE listingId = ? ORDER BY position ASC LIMIT 1',
+                    [req.params.listingId],
+                    (err) => {
+                      if (err) {
+                        console.error('Error setting new primary image:', err.message);
+                      }
+                    }
+                  );
+                }
+                
+                res.json({ message: 'Image deleted successfully' });
+              }
+            );
+          }
+        );
       }
     );
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  });
 });
 
 // Update a listing
@@ -268,6 +467,71 @@ router.put('/:id/status', auth, (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Add a new image to an existing listing
+router.post('/:id/images', [auth, roleAuth(['agent', 'manager'])], upload.single('image'), (req, res) => {
+  // Get the listing to check if user has permission
+  db.get('SELECT userId FROM listings WHERE id = ?', [req.params.id], (err, listing) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    if (!listing) {
+      return res.status(404).json({ error: 'Listing not found' });
+    }
+    
+    // Check if user is the owner or a manager
+    if (listing.userId !== req.user.id && req.user.role !== 'manager') {
+      return res.status(403).json({ error: 'Not authorized to update this listing' });
+    }
+    
+    // Check if listing already has 5 images
+    db.get('SELECT COUNT(*) as count FROM listing_images WHERE listingId = ?', [req.params.id], (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (result.count >= 5) {
+        return res.status(400).json({ error: 'Maximum of 5 images allowed per listing' });
+      }
+      
+      // Check if file exists
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image provided' });
+      }
+      
+      // Insert the new image (not as primary by default)
+      const imageSql = `
+        INSERT INTO listing_images (
+          listingId, image, imageType, isPrimary, position
+        ) VALUES (?, ?, ?, ?, ?)
+      `;
+      
+      db.run(
+        imageSql,
+        [req.params.id, req.file.buffer, req.file.mimetype, 0, result.count],
+        function(err) {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          
+          const imageId = this.lastID;
+          
+          // If this is the only image, set it as primary
+          if (result.count === 0) {
+            db.run('UPDATE listing_images SET isPrimary = 1 WHERE id = ?', [imageId]);
+          }
+          
+          res.status(201).json({
+            id: imageId,
+            position: result.count,
+            isPrimary: result.count === 0 ? 1 : 0
+          });
+        }
+      );
+    });
+  });
 });
 
 module.exports = router;

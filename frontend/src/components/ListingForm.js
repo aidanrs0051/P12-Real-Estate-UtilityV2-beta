@@ -13,12 +13,13 @@ const ListingForm = () => {
     propertyType: 'house',
     description: ''
   });
-  const [image, setImage] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  
+  const [images, setImages] = useState([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
+  
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -26,28 +27,76 @@ const ListingForm = () => {
       [name]: value
     }));
   };
-
+  
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImage(file);
+    e.preventDefault();
+    
+    const files = Array.from(e.target.files);
+    
+    // Limit to 5 images total
+    if (images.length + files.length > 5) {
+      setError('You can upload a maximum of 5 images');
+      return;
+    }
+    
+    // Create previews for each new image
+    const newImagePreviews = [...imagePreviewUrls];
+    const newImages = [...images];
+    
+    files.forEach(file => {
+      // Validate file type
+      if (!file.type.match('image.*')) {
+        setError('Only image files are allowed');
+        return;
+      }
       
-      // Create a preview
+      // Add to images array
+      newImages.push(file);
+      
+      // Create preview
       const reader = new FileReader();
       reader.onloadend = () => {
-        setImagePreview(reader.result);
+        newImagePreviews.push(reader.result);
+        setImagePreviewUrls([...newImagePreviews]);
       };
       reader.readAsDataURL(file);
-    }
+    });
+    
+    setImages(newImages);
   };
-
+  
+  const removeImage = (index) => {
+    const newImages = [...images];
+    const newImagePreviewUrls = [...imagePreviewUrls];
+    
+    newImages.splice(index, 1);
+    newImagePreviewUrls.splice(index, 1);
+    
+    setImages(newImages);
+    setImagePreviewUrls(newImagePreviewUrls);
+  };
+  
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (images.length === 0) {
+      setError('Please add at least one image');
+      return;
+    }
+    
     setLoading(true);
     setError('');
     
     try {
-      // Create a FormData object to send the form data and file
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setError('You must be logged in to create a listing');
+        setLoading(false);
+        return;
+      }
+      
+      // Create a FormData object to send the form data and files
       const data = new FormData();
       
       // Add all form fields
@@ -55,17 +104,10 @@ const ListingForm = () => {
         data.append(key, value);
       });
       
-      // Add the image if it exists
-      if (image) {
-        data.append('image', image);
-      }
-      
-      // Get the token from localStorage
-      const token = localStorage.getItem('token');
-      
-      if (!token) {
-        throw new Error('You must be logged in to create a listing');
-      }
+      // Add images
+      images.forEach(image => {
+        data.append('images', image);
+      });
       
       // Send the request
       const response = await fetch(`${API_URL}/listings`, {
@@ -91,7 +133,7 @@ const ListingForm = () => {
       setLoading(false);
     }
   };
-
+  
   return (
     <div className="container py-5">
       <h1 className="mb-4">Create New Listing</h1>
@@ -101,12 +143,13 @@ const ListingForm = () => {
       )}
       
       <form onSubmit={handleSubmit}>
-        <div className="row mb-4">
+        <div className="row">
           <div className="col-md-8">
-            <div className="card">
+            <div className="card mb-4">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">Property Details</h5>
+              </div>
               <div className="card-body">
-                <h5 className="card-title mb-4">Property Details</h5>
-                
                 <div className="mb-3">
                   <label htmlFor="title" className="form-label">Title (Optional)</label>
                   <input
@@ -232,53 +275,70 @@ const ListingForm = () => {
           </div>
           
           <div className="col-md-4">
-            <div className="card">
+            <div className="card mb-4">
+              <div className="card-header bg-primary text-white">
+                <h5 className="mb-0">Property Images</h5>
+              </div>
               <div className="card-body">
-                <h5 className="card-title mb-4">Property Image</h5>
-                
                 <div className="mb-3">
-                  <label htmlFor="image" className="form-label">Upload Image</label>
+                  <label className="form-label">Upload Images (Max 5)*</label>
                   <input
                     type="file"
                     className="form-control"
-                    id="image"
-                    name="image"
                     accept="image/*"
                     onChange={handleImageChange}
+                    multiple
                   />
+                  <small className="text-muted">First image will be the primary image</small>
                 </div>
                 
-                {imagePreview && (
-                  <div className="mt-3">
-                    <h6>Image Preview:</h6>
-                    <img 
-                      src={imagePreview} 
-                      alt="Property Preview" 
-                      className="img-fluid rounded"
-                      style={{ maxHeight: '300px' }}
-                    />
+                {imagePreviewUrls.length > 0 && (
+                  <div className="mb-3">
+                    <label className="form-label">Image Previews:</label>
+                    <div className="row g-2">
+                      {imagePreviewUrls.map((preview, index) => (
+                        <div key={index} className="col-6 position-relative">
+                          <img 
+                            src={preview} 
+                            alt={`Preview ${index + 1}`}
+                            className="img-thumbnail" 
+                            style={{ height: '120px', objectFit: 'cover', width: '100%' }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-danger position-absolute top-0 end-0"
+                            onClick={() => removeImage(index)}
+                          >
+                            &times;
+                          </button>
+                          {index === 0 && (
+                            <span className="badge bg-primary position-absolute bottom-0 start-0 m-1">
+                              Primary
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             </div>
+            
+            <div className="mb-4">
+              <button
+                type="submit"
+                className="btn btn-primary w-100"
+                disabled={loading || images.length === 0}
+              >
+                {loading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                    Creating Listing...
+                  </>
+                ) : 'Create Listing'}
+              </button>
+            </div>
           </div>
-        </div>
-        
-        <div className="d-flex justify-content-end">
-          <button 
-            type="button" 
-            className="btn btn-outline-secondary me-2"
-            onClick={() => navigate('/listings')}
-          >
-            Cancel
-          </button>
-          <button 
-            type="submit" 
-            className="btn btn-primary"
-            disabled={loading}
-          >
-            {loading ? 'Creating...' : 'Create Listing'}
-          </button>
         </div>
       </form>
     </div>

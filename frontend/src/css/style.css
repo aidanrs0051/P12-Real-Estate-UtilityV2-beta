@@ -33,3 +33,31 @@ footer {
   padding: 60px 0;
   text-align: center;
 }
+
+/* Image gallery styles */
+.thumbnail-container {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.thumbnail-container:hover {
+  transform: scale(1.05);
+}
+
+.thumbnail-container.active {
+  transform: scale(1.05);
+}
+
+.thumbnail-container img {
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+}
+
+/* For the primary image badge */
+.badge-primary {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  font-size: 0.65rem;
+}

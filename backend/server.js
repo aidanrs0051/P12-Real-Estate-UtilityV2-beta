@@ -51,12 +51,24 @@ function createTables() {
       sqft TEXT NOT NULL,
       propertyType TEXT NOT NULL,
       description TEXT,
+      status TEXT DEFAULT 'active',
+      userId INTEGER,
+      createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (userId) REFERENCES users (id)
+    )
+  `);
+
+  // Table for listing images
+  db.run(`
+    CREATE TABLE IF NOT EXISTS listing_images (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listingId INTEGER NOT NULL,
       image BLOB,
       imageType TEXT,
+      isPrimary INTEGER DEFAULT 0,
+      position INTEGER DEFAULT 0,
       createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-      userId INTEGER,
-      status TEXT DEFAULT 'active',
-      FOREIGN KEY (userId) REFERENCES users (id)
+      FOREIGN KEY (listingId) REFERENCES listings (id) ON DELETE CASCADE
     )
   `);
 }
