@@ -129,7 +129,7 @@ router.post('/', [auth, roleAuth(['agent', 'manager'])], upload.single('image'),
   }
 });
 
-// Update a listing with optional image update
+// Update a listing
 router.put('/:id', auth, (req, res) => {
   try {
     const {
@@ -140,12 +140,13 @@ router.put('/:id', auth, (req, res) => {
       baths,
       sqft,
       propertyType,
-      description,
-      status
+      description
     } = req.body;
     
+    const listingId = req.params.id;
+    
     // Check if user owns this listing or is admin
-    if (listing.userId !== req.user.id && req.user.role !== 'agent') {
+    if (req.user.role !== 'agent') {
       return res.status(403).json({ error: 'Not authorized to update this listing' });
     }
 
@@ -158,69 +159,44 @@ router.put('/:id', auth, (req, res) => {
         return res.status(404).json({ error: 'Listing not found' });
       }
       
-      // Check if user owns the listing
-      if (listing.userId !== req.user.id) {
+      // Check if user is agent
+      if (req.user.role !== 'agent') {
         return res.status(403).json({ error: 'Not authorized to update this listing' });
       }
       
-      // If there's a new image, update it
-      if (req.file) {
-        const updateWithImageSql = `
-          UPDATE listings SET
-            title = COALESCE(?, title),
-            price = COALESCE(?, price),
-            address = COALESCE(?, address),
-            beds = COALESCE(?, beds),
-            baths = COALESCE(?, baths),
-            sqft = COALESCE(?, sqft),
-            propertyType = COALESCE(?, propertyType),
-            description = COALESCE(?, description),
-            image = ?,
-            imageType = ?,
-            status = COALESCE(?, status)
-          WHERE id = ?
-        `;
-        
-        db.run(
-          updateWithImageSql,
-          [title, price, address, beds, baths, sqft, propertyType, description, 
-           req.file.buffer, req.file.mimetype, status, req.params.id],
-          function(err) {
+      // Update the listing
+      const sql = `
+        UPDATE listings SET
+          title = COALESCE(?, title),
+          price = COALESCE(?, price),
+          address = COALESCE(?, address),
+          beds = COALESCE(?, beds),
+          baths = COALESCE(?, baths),
+          sqft = COALESCE(?, sqft),
+          propertyType = COALESCE(?, propertyType),
+          description = COALESCE(?, description),
+          createdAt = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `;
+      
+      db.run(
+        sql,
+        [title, price, address, beds, baths, sqft, propertyType, description, listingId],
+        function(err) {
+          if (err) {
+            return res.status(500).json({ error: err.message });
+          }
+          
+          // Get updated listing
+          db.get('SELECT * FROM listings WHERE id = ?', [listingId], (err, updatedListing) => {
             if (err) {
               return res.status(500).json({ error: err.message });
             }
             
-            res.json({ message: 'Listing updated successfully' });
-          }
-        );
-      } else {
-        // If no new image, update everything except the image
-        const updateWithoutImageSql = `
-          UPDATE listings SET
-            title = COALESCE(?, title),
-            price = COALESCE(?, price),
-            address = COALESCE(?, address),
-            beds = COALESCE(?, beds),
-            baths = COALESCE(?, baths),
-            sqft = COALESCE(?, sqft),
-            propertyType = COALESCE(?, propertyType),
-            description = COALESCE(?, description),
-            status = COALESCE(?, status)
-          WHERE id = ?
-        `;
-        
-        db.run(
-          updateWithoutImageSql,
-          [title, price, address, beds, baths, sqft, propertyType, description, status, req.params.id],
-          function(err) {
-            if (err) {
-              return res.status(500).json({ error: err.message });
-            }
-            
-            res.json({ message: 'Listing updated successfully' });
-          }
-        );
-      }
+            res.json(updatedListing);
+          });
+        }
+      );
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
