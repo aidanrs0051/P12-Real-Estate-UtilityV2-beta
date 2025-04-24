@@ -1,0 +1,63 @@
+/* Main CSS file - style.css */
+
+:root {
+  --custom-light-purple: #8e44ad;
+  --custom-dark-purple: #6c3483;
+}
+
+/* Ensure clickable cards inherit text decoration */
+.listing-card a {
+  text-decoration: none;
+  color: inherit;
+}
+
+.listing-card a:hover {
+  color: inherit;
+}
+
+/* Footer styles */
+footer {
+  background-color: #f8f9fa;
+  padding: 20px 0;
+  margin-top: 40px;
+}
+
+.footer-bottom {
+  padding: 15px 0;
+  border-top: 1px solid #e9ecef;
+  text-align: center;
+}
+
+/* Additional styling specific to the report generator page */
+.report-container {
+  padding: 60px 0;
+  text-align: center;
+}
+
+/* Image gallery styles */
+.thumbnail-container {
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.thumbnail-container:hover {
+  transform: scale(1.05);
+}
+
+.thumbnail-container.active {
+  transform: scale(1.05);
+}
+
+.thumbnail-container img {
+  width: 100%;
+  height: 60px;
+  object-fit: cover;
+}
+
+/* For the primary image badge */
+.badge-primary {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  font-size: 0.65rem;
+}
